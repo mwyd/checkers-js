@@ -19,86 +19,109 @@ const createBoardPawn = (isDark) => {
     return el
 }
 
-class Field {
+class Pawn {
     constructor(options) {
-        this.id = options.id
         this.isDark = options.isDark
-        this.html = options.html
-        this.pawnOn = options.pawnOn
-        this.pawn = options.pawn
+        this.fieldId = options.fieldId
         this.checkersRef = options.checkersRef
 
-        if(this.pawn) {
-            this.html.appendChild(this.pawn.html)
-            this.initEvents()
-        }
+        this.html = createBoardPawn(this.isDark)
+        this.queen = false
+
+        this.init()
     }
 
-    initEvents() {
-        this.pawn.html.addEventListener('click', e => {this.showMoves(e.target)})
+    init() {
+        this.html.onclick = () => {this.showMoves()}
     }
 
-    showMoves(target) {
-        const pawn = this.checkersRef.getPawnByElement(target)
-        if(this.checkersRef.darkTurn != pawn.isDark) return
-        const moves = this.getMoves(pawn)
+    showMoves() {
+        if(this.checkersRef.darkTurn != this.isDark) return
+        let moves = this.getMoves()
+        moves = moves.priority.length > 0 ? moves.priority : moves.standard
 
         this.checkersRef.setFieldsIdle()
 
         for(let i = 0; i < moves.length; i++) {
             moves[i].toField.setActive()
-            moves[i].toField.html.onclick = () => {
-                this.checkersRef.move(moves[i])
-            }
+            moves[i].toField.html.onclick = () => {this.move(moves[i])}
         }
     }
 
-    getMoves(pawn) {
+    getMoves() {
         let modifier = this.checkersRef.darkTurn ? -1 : 1
         const rawMoves = []
         const moves = {priority: [], standard: []}
 
-        rawMoves.push(this.getMove(pawn, modifier, -1))
-        rawMoves.push(this.getMove(pawn, modifier, 1))
+        rawMoves.push(this.getMove(modifier, -1))
+        rawMoves.push(this.getMove(modifier, 1))
         
-        if(pawn.queen) {
-            rawMoves.push(this.getMove(pawn, modifier * -1, -1))
-            rawMoves.push(this.getMove(pawn, modifier * -1, 1))
+        if(this.queen) {
+            rawMoves.push(this.getMove(modifier * -1, -1))
+            rawMoves.push(this.getMove(modifier * -1, 1))
         }
 
         for(let move of rawMoves) {
             if(move.available) move.takedown ? moves.priority.push(move) : moves.standard.push(move)
         }
 
-        return moves.priority.length > 0 ? moves.priority : moves.standard 
+        return moves 
     }
 
-    getMove(pawn, upDown, leftRight) {
+    getMove(upDown, leftRight) {
         let move = {
             available: false,
             takedown: false,
             promotion: false,
-            takedownField: this.checkersRef.getFieldById([pawn.fieldId[0] + upDown / 2, pawn.fieldId[1] + leftRight / 2]),
-            fromField: this.checkersRef.getFieldById(pawn.fieldId),
-            toField: this.checkersRef.getFieldById([pawn.fieldId[0] + upDown, pawn.fieldId[1] + leftRight]) 
+            takedownField: this.checkersRef.getFieldById([this.fieldId[0] + upDown / 2, this.fieldId[1] + leftRight / 2]),
+            fromField: this.checkersRef.getFieldById(this.fieldId),
+            toField: this.checkersRef.getFieldById([this.fieldId[0] + upDown, this.fieldId[1] + leftRight]) 
         }
 
         if(move.toField) {
             if(move.toField.empty()) {
                 move.available = true
                 if(move.takedownField) move.takedown = true
-                if((pawn.isDark && move.toField.id[0] == 1) || (!pawn.isDark && move.toField.id[0] == 8)) move.promotion = true
+                if((this.isDark && move.toField.id[0] == 1) || (!this.isDark && move.toField.id[0] == 8)) move.promotion = true
             }
-            else if(move.toField.getPawn().isDark != pawn.isDark) {
-                if(Math.abs(upDown) < 2 && Math.abs(leftRight) < 2) move = this.getMove(pawn, upDown * 2, leftRight * 2)     
+            else if(move.toField.getPawn().isDark != this.isDark) {
+                if(Math.abs(upDown) < 2 && Math.abs(leftRight) < 2) move = this.getMove(upDown * 2, leftRight * 2)     
             }
         }
 
         return move
     }
 
-    getPawn() {
-        return this.pawn
+    move(move) {
+        move.toField.pawn = this
+        this.fieldId = move.toField.id
+        move.toField.html.appendChild(this.html)
+
+        move.fromField.pawn = null
+
+        if(move.takedown) {
+            move.takedownField.pawn.html.remove()
+            move.takedownField.pawn = null
+        }
+
+        if(move.promotion) {
+            this.html.innerText = 'Q'
+            this.queen = true
+        }
+
+        const nextMoves = this.getMoves()
+        if(nextMoves.priority.length == 0 || !move.takedown) this.checkersRef.darkTurn = !this.checkersRef.darkTurn
+        this.checkersRef.setFieldsIdle()
+    }
+}
+
+class Field {
+    constructor(options) {
+        this.id = options.id
+        this.isDark = options.isDark
+        this.html = createBoardField(this.isDark)
+        this.pawn = options.pawn
+        this.checkersRef = options.checkersRef
     }
 
     setActive() {
@@ -113,6 +136,10 @@ class Field {
     empty() {
         return this.pawn == null
     }
+
+    getPawn() {
+        return this.pawn
+    }
 }
 
 class Checkers {
@@ -120,6 +147,8 @@ class Checkers {
         this.board = document.querySelector('#board')
         this.darkTurn = Math.floor(Math.random() * Math.floor(2)) == 1 ? true : false
         this.fields = []
+        this.lightPawns = []
+        this.darkPawns = []
 
         this.initBoard()
     }
@@ -130,25 +159,32 @@ class Checkers {
             for(let j = 1; j < 9; j++) {
                 const fieldId = [i, j]
                 const isDark = (i % 2 == 0 && j % 2 == 0) || (i % 2 != 0 && j % 2 != 0)
-                const pawnOn = (i < 4 || i > 5)
+                const pawnOn = (i < 4 || i > 5) && isDark
+                
                 //create field obj
                 const field = new Field({
                     id: fieldId,
                     isDark: isDark,
-                    html: createBoardField(isDark),
-                    pawnOn: pawnOn,
-                    pawn: !pawnOn || !isDark ? null : {
-                        isDark: i > 5,
-                        html: createBoardPawn(i > 5),
-                        queen: false,
-                        fieldId: fieldId
-                    },
-                    checkersRef: this
+                    pawn: null,
                 })
+
+                //create pawn obj
+                if(pawnOn) {
+                    const pawn = new Pawn({
+                        isDark: i > 5,
+                        fieldId: fieldId,
+                        checkersRef: this
+                    })
+                    pawn.isDark ? this.darkPawns.push(pawn) : this.lightPawns.push(pawn)
+                    field.pawn = pawn
+                    field.html.appendChild(pawn.html)
+                }
                 this.fields.push(field)
+                
                 //update html
                 boardRow.appendChild(field.html)
             }
+            
             //update html
             this.board.appendChild(boardRow)
         }
@@ -173,30 +209,6 @@ class Checkers {
 
     setFieldsIdle() {
         for(let field of this.fields) field.setIdle()
-    }
-
-    move(move) {
-        move.toField.pawnOn = true
-        move.toField.pawn = move.fromField.pawn
-        move.toField.pawn.fieldId = move.toField.id
-        move.toField.html.appendChild(move.toField.pawn.html)
-
-        move.fromField.pawnOn = false
-        move.fromField.pawn = null
-
-        if(move.takedown) {
-            move.takedownField.pawnOn = false
-            move.takedownField.pawn.html.remove()
-            move.takedownField.pawn = null
-        }
-
-        if(move.promotion) {
-            move.toField.pawn.html.innerText = 'Q'
-            move.toField.pawn.queen = true
-        }
-
-        this.darkTurn = !this.darkTurn
-        this.setFieldsIdle()
     }
 }
 
