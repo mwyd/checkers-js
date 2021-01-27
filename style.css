@@ -1,0 +1,57 @@
+body {
+    margin: 0 auto;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#board {
+    height: 400px;
+    width: 400px;
+    border: 1px solid lightgray;   
+}
+
+.board-row {
+    width: 100%;
+    height: 50px;
+}
+
+.board-field {
+    display: inline-block;
+    vertical-align: top;
+    height: 50px;
+    width: 50px;
+}
+
+.field-dark {
+    background-color: black;
+}
+
+.field-light {
+    background-color: white;
+}
+
+.field-active {
+    background-color: lightpink;
+}
+
+.board-pawn {
+    height: 40px;
+    width: 40px;
+    border-radius: 50%;
+    margin: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+
+.pawn-light {
+    background-color: beige;
+}
+
+.pawn-dark {
+    background-color: rosybrown
+}
