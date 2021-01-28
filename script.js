@@ -27,24 +27,17 @@ class Pawn {
 
         this.html = createBoardPawn(this.isDark)
         this.queen = false
-
-        this.init()
     }
 
-    init() {
-        this.html.onclick = () => {this.showMoves()}
-    }
+    showMoves(moves) {
+        this.html.onclick = () => {
+            if(this.checkersRef.darkTurn != this.isDark) return
+            this.checkersRef.setFieldsIdle()
 
-    showMoves() {
-        if(this.checkersRef.darkTurn != this.isDark) return
-        let moves = this.getMoves()
-        moves = moves.priority.length > 0 ? moves.priority : moves.standard
-
-        this.checkersRef.setFieldsIdle()
-
-        for(let i = 0; i < moves.length; i++) {
-            moves[i].toField.setActive()
-            moves[i].toField.html.onclick = () => {this.move(moves[i])}
+            for(let i = 0; i < moves.length; i++) {
+                moves[i].toField.setActive()
+                moves[i].toField.html.onclick = () => {this.move(moves[i])}
+            }
         }
     }
 
@@ -98,9 +91,10 @@ class Pawn {
         move.toField.html.appendChild(this.html)
 
         move.fromField.pawn = null
+        this.checkersRef.clearPawnsOnclick()
 
         if(move.takedown) {
-            move.takedownField.pawn.html.remove()
+            this.checkersRef.removePawn(move.takedownField.pawn)
             move.takedownField.pawn = null
         }
 
@@ -110,8 +104,13 @@ class Pawn {
         }
 
         const nextMoves = this.getMoves()
-        if(nextMoves.priority.length == 0 || !move.takedown) this.checkersRef.darkTurn = !this.checkersRef.darkTurn
+        if(nextMoves.priority.length > 0 && move.takedown) this.showMoves(nextMoves.priority)
+        else this.checkersRef.changeTurn()
         this.checkersRef.setFieldsIdle()
+    }
+
+    clearOnclick() {
+        this.html.onclick = null
     }
 }
 
@@ -151,6 +150,7 @@ class Checkers {
         this.darkPawns = []
 
         this.initBoard()
+        this.changeTurn()
     }
 
     initBoard() {
@@ -161,14 +161,12 @@ class Checkers {
                 const isDark = (i % 2 == 0 && j % 2 == 0) || (i % 2 != 0 && j % 2 != 0)
                 const pawnOn = (i < 4 || i > 5) && isDark
                 
-                //create field obj
                 const field = new Field({
                     id: fieldId,
                     isDark: isDark,
                     pawn: null,
                 })
 
-                //create pawn obj
                 if(pawnOn) {
                     const pawn = new Pawn({
                         isDark: i > 5,
@@ -179,13 +177,11 @@ class Checkers {
                     field.pawn = pawn
                     field.html.appendChild(pawn.html)
                 }
+
                 this.fields.push(field)
-                
-                //update html
                 boardRow.appendChild(field.html)
             }
             
-            //update html
             this.board.appendChild(boardRow)
         }
     }
@@ -198,17 +194,33 @@ class Checkers {
         return null
     }
 
-    getPawnByElement(el) {
-        for(let field of this.fields) {
-            if(field.pawn == null) continue
-            if(field.pawn.html == el) return field.pawn
-        }
-
-        return null
-    }
-
     setFieldsIdle() {
         for(let field of this.fields) field.setIdle()
+    }
+
+    changeTurn() {
+        this.darkTurn = !this.darkTurn
+        const playablePawns = this.darkTurn ? this.darkPawns : this.lightPawns
+        const allMoves = {priority: [], standard: []}
+
+        for(let playablePawn of playablePawns) {
+            const moves = playablePawn.getMoves()
+            if(moves.priority.length > 0) allMoves.priority.push({pawn: playablePawn, moves: moves.priority})
+            if(moves.standard.length > 0) allMoves.standard.push({pawn: playablePawn, moves: moves.standard})
+        }
+        console.log(allMoves)
+        if(allMoves.priority.length > 0) for(let moves of allMoves.priority) moves.pawn.showMoves(moves.moves)
+        else for(let moves of allMoves.standard) moves.pawn.showMoves(moves.moves)
+    }
+
+    clearPawnsOnclick() {
+        const allPawns = [...this.darkPawns, ...this.lightPawns]
+        for(let pawn of allPawns) pawn.clearOnclick()
+    }
+
+    removePawn(pawn) {
+        pawn.html.remove()
+        pawn.isDark ? this.darkPawns.splice(this.darkPawns.indexOf(pawn), 1) : this.lightPawns.splice(this.lightPawns.indexOf(pawn), 1)
     }
 }
 
