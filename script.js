@@ -19,6 +19,13 @@ const createBoardPawn = (isDark) => {
     return el
 }
 
+const createFieldIdDisplay = () => {
+    const el = document.createElement('div')
+    el.classList.add('board-field-id-display')
+
+    return el
+}
+
 class Pawn {
     constructor(options) {
         this.isDark = options.isDark
@@ -92,9 +99,11 @@ class Pawn {
 
         move.fromField.pawn = null
         this.checkersRef.clearPawnsOnclick()
+        this.checkersRef.darkTurn ? this.checkersRef.darkFreeMoves += 1 : this.checkersRef.lightFreeMoves += 1
 
         if(move.takedown) {
             this.checkersRef.removePawn(move.takedownField.pawn)
+            this.checkersRef.darkTurn ? this.checkersRef.darkFreeMoves = 0 : this.checkersRef.lightFreeMoves = 0
             move.takedownField.pawn = null
         }
 
@@ -121,14 +130,26 @@ class Field {
         this.html = createBoardField(this.isDark)
         this.pawn = options.pawn
         this.checkersRef = options.checkersRef
+
+        this.initEvents()
+    }
+
+    initEvents() {
+        this.html.addEventListener('mouseenter', () => {
+            this.checkersRef.fieldIdDisplay.innerText = String.fromCharCode(64 + this.id[1]) + this.id[0]
+        })
+
+        this.html.addEventListener('mouseleave', () => {
+            this.checkersRef.fieldIdDisplay.innerText = ''
+        })
     }
 
     setActive() {
-        this.html.classList.replace('field-idle', 'field-active')
+        this.html.classList.add('field-active')
     }
 
     setIdle() {
-        this.html.classList.replace('field-active', 'field-idle')
+        this.html.classList.remove('field-active')
         this.html.onclick = null
     }
 
@@ -144,16 +165,21 @@ class Field {
 class Checkers {
     constructor() {
         this.board = document.querySelector('#board')
+        this.fieldIdDisplay = createFieldIdDisplay()
+
+        this.init()
+    }
+
+    init() {
+        this.board.innerHTML = ''
+        this.board.appendChild(this.fieldIdDisplay)
         this.darkTurn = Math.floor(Math.random() * Math.floor(2)) == 1 ? true : false
+        this.darkFreeMoves = 0
+        this.lightFreeMoves = 0
         this.fields = []
         this.lightPawns = []
         this.darkPawns = []
 
-        this.initBoard()
-        this.changeTurn()
-    }
-
-    initBoard() {
         for(let i = 8; i > 0; i--) {
             const boardRow = createBoardRow()
             for(let j = 1; j < 9; j++) {
@@ -165,6 +191,7 @@ class Checkers {
                     id: fieldId,
                     isDark: isDark,
                     pawn: null,
+                    checkersRef: this
                 })
 
                 if(pawnOn) {
@@ -184,6 +211,8 @@ class Checkers {
             
             this.board.appendChild(boardRow)
         }
+
+        this.changeTurn()
     }
 
     getFieldById(id) {
@@ -208,7 +237,21 @@ class Checkers {
             if(moves.priority.length > 0) allMoves.priority.push({pawn: playablePawn, moves: moves.priority})
             if(moves.standard.length > 0) allMoves.standard.push({pawn: playablePawn, moves: moves.standard})
         }
-        console.log(allMoves)
+
+        const victory = playablePawns.length == 0
+        const draw = this.darkFreeMoves > 14 && this.lightFreeMoves > 14
+        const noMoves = allMoves.priority.length == 0 && allMoves.standard.length == 0
+
+        if(victory || draw || noMoves) {
+            let msg = 'Draw'
+            if(victory || noMoves) msg = `${this.darkTurn ? 'Light' : 'Dark'} wins`
+            alert(msg)
+
+            this.init()
+            return
+        }
+
+        //console.log(allMoves)
         if(allMoves.priority.length > 0) for(let moves of allMoves.priority) moves.pawn.showMoves(moves.moves)
         else for(let moves of allMoves.standard) moves.pawn.showMoves(moves.moves)
     }
