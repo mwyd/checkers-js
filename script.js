@@ -245,9 +245,12 @@ class Checkers {
         if(victory || draw || noMoves) {
             let msg = 'Draw'
             if(victory || noMoves) msg = `${this.darkTurn ? 'Light' : 'Dark'} wins`
-            alert(msg)
+            
+            setTimeout(() => {
+                alert(msg)
+                this.init()
+            }, 50)
 
-            this.init()
             return
         }
 
